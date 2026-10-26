@@ -41,6 +41,8 @@ Respuesta:
 - Si Claude falla (API caída, sin saldo, rechazo del modelo, respuesta cortada), el cliente recibe un aviso y el chat pasa a una persona del equipo, en vez de quedar sin respuesta.
 - Variables: `ANTHROPIC_API_KEY`, y opcionales `ANTHROPIC_MODEL` (por defecto `claude-opus-5-5`) y `ANTHROPIC_EFFORT`. Para bajar costo y latencia se puede probar `claude-sonnet-5-5` o `claude-haiku-5-5`, pero conviene repetir antes las pruebas de seguridad de más abajo.
 
+**Workflow listo para importar:** [n8n/farmacia-whatsapp.workflow.json](../n8n/farmacia-whatsapp.workflow.json) (WhatsApp Trigger → armar mensaje → bot → repartir respuestas → enviar por WhatsApp). En n8n: *Workflows → ⋮ → Import from file* (o pegá el JSON sobre el lienzo con `Ctrl+V`). Después creá las tres credenciales que indica la nota del propio workflow, elegilas en los nodos y activalo. La URL del bot está fija en el nodo *Bot (Claude)*: cambiala si tu dominio es otro. No se pudo probar en una instancia de n8n: si algún nodo aparece con un aviso, revisá su versión y sus campos. Esta primera etapa maneja solo texto; las fotos de recetas son la etapa 2.
+
 Fotos y PDF: ver *Fotos y recetas* más abajo. Con `/agent/respond` el paso 2 (`type: "media"`) se manda igual a `/agent/respond`.
 
 Los endpoints siguientes (`/agent/inbound`, herramientas sueltas) siguen disponibles si preferís armar el agente en n8n.

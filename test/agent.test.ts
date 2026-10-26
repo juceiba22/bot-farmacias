@@ -137,6 +137,15 @@ test('una consulta médica la corta el código y deja el chat para una persona',
   assert.equal((await say('hola de nuevo', phone)).body.action, 'agent');
 });
 
+test('un mensaje que el bot no puede leer (audio, imagen sin soporte) se contesta sin prometer fotos', async () => {
+  const phone = '5493875552222';
+  await consent(phone);
+  const res = await call('POST', '/agent/inbound', { phone, type: 'unsupported' });
+  assert.equal(res.body.action, 'reply');
+  assert.match(res.body.replies[0], /no puedo abrir ese tipo de mensaje/);
+  assert.doesNotMatch(res.body.replies[0], /fotos/);
+});
+
 test('una emergencia responde con los teléfonos aunque la persona no haya dado consentimiento', async () => {
   const res = await say('sobredosis de pastillas', '5493875559999');
   assert.equal(res.body.action, 'reply');

@@ -1,0 +1,171 @@
+{
+  "name": "Farmacia - WhatsApp con Claude",
+  "nodes": [
+    {
+      "id": "5b1f7a52-6a53-4f3c-9d0a-0c1e6f1a0001",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -120
+      ],
+      "parameters": {
+        "content": "## Bot de farmacia: WhatsApp → Claude\n\n**Cómo funciona:** cada mensaje va a `/agent/respond` del bot. El bot aplica las reglas fijas (consentimiento, emergencias, consultas médicas) y, si corresponde, consulta a Claude. n8n solo conecta WhatsApp con el bot.\n\n**Antes de activarlo, creá 3 credenciales y elegilas en los nodos:**\n1. *WhatsApp OAuth API* (nodo WhatsApp Trigger): App ID y App Secret de tu app de Meta.\n2. *Header Auth* \"Bot farmacias (Bearer)\": Name `Authorization`, Value `Bearer <AGENT_API_TOKEN>`.\n3. *Header Auth* \"WhatsApp Graph (Bearer)\": Name `Authorization`, Value `Bearer <token de acceso de Meta>`.\n\nDespués, **activá el workflow** (interruptor arriba a la derecha) para que Meta use la URL de producción.\n\n**Etapa 1:** solo texto. Fotos y recetas por imagen, en la etapa 2.",
+        "height": 420,
+        "width": 520
+      }
+    },
+    {
+      "id": "5b1f7a52-6a53-4f3c-9d0a-0c1e6f1a0002",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "webhookId": "7d1c4c0e-3b1e-4c53-8a6e-2f7f7a1a0003",
+      "parameters": {
+        "updates": [
+          "messages"
+        ]
+      },
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "id": "5b1f7a52-6a53-4f3c-9d0a-0c1e6f1a0004",
+      "name": "Armar mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Convierte el aviso de WhatsApp en el pedido que entiende el bot.\n// Un aviso puede traer estados (entregado, leído) en vez de mensajes: en ese caso no se hace nada.\nconst aviso = $input.first().json;\nconst m = aviso.messages?.[0];\nif (!m) return [];\n\nlet type = 'text';\nlet text = '';\nif (m.type === 'text') text = m.text?.body ?? '';\nelse if (m.type === 'button') text = m.button?.text ?? '';\nelse if (m.type === 'interactive') text = m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? '';\nelse type = 'unsupported'; // fotos, audios, ubicación… (las fotos de recetas llegan en la segunda etapa)\n\nreturn [{\n  json: {\n    phone: m.from,\n    name: aviso.contacts?.[0]?.profile?.name ?? '',\n    type,\n    text,\n    message_id: m.id,\n    phone_number_id: aviso.metadata?.phone_number_id ?? '',\n  },\n}];"
+      }
+    },
+    {
+      "id": "5b1f7a52-6a53-4f3c-9d0a-0c1e6f1a0005",
+      "name": "Bot (Claude)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://bot-farmacias-production.up.railway.app/agent/respond",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, name: $json.name, type: $json.type, text: $json.text, message_id: $json.message_id }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Bot farmacias (Bearer)"
+        }
+      }
+    },
+    {
+      "id": "5b1f7a52-6a53-4f3c-9d0a-0c1e6f1a0006",
+      "name": "Repartir respuestas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// El bot devuelve uno o más textos; se arma un ítem por texto para enviarlos en orden.\nconst respuesta = $input.first().json;\nconst mensaje = $('Armar mensaje').first().json;\nif (respuesta.action !== 'reply' || !Array.isArray(respuesta.replies)) return [];\n\nreturn respuesta.replies.map((text) => ({\n  json: { phone: mensaje.phone, phone_number_id: mensaje.phone_number_id, text },\n}));"
+      }
+    },
+    {
+      "id": "5b1f7a52-6a53-4f3c-9d0a-0c1e6f1a0007",
+      "name": "Enviar por WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v23.0/{{ $json.phone_number_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone, type: 'text', text: { body: $json.text, preview_url: false } }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Graph (Bearer)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Armar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar mensaje": {
+      "main": [
+        [
+          {
+            "node": "Bot (Claude)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bot (Claude)": {
+      "main": [
+        [
+          {
+            "node": "Repartir respuestas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Repartir respuestas": {
+      "main": [
+        [
+          {
+            "node": "Enviar por WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -322,7 +322,13 @@ export function createBot(deps: { store: Store; cfg: PharmacyConfig; deleteFiles
     if (c.session.state === 'humano') return [];
     if (asksForPerson) return handoff(c);
 
-    if (msg.type === 'unsupported') return ['Por ahora solo puedo leer texto, fotos y PDF. ¿Me lo escribís?'];
+    if (msg.type === 'unsupported') {
+      return [
+        mode === 'menu'
+          ? 'Por ahora solo puedo leer texto, fotos y PDF. ¿Me lo escribís?'
+          : 'Por ahora no puedo abrir ese tipo de mensaje. ¿Me lo escribís?',
+      ];
+    }
 
     if (!COLLECTING.has(c.session.state) && MEDICAL.test(t)) {
       return handoff(c, false, 'Soy un asistente automático y no puedo dar indicaciones sobre medicamentos ni síntomas: eso lo tiene que responder un farmacéutico o tu médico.\n\n');

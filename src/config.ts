@@ -15,6 +15,8 @@ export type PharmacyConfig = {
   name: string;
   address: string;
   phone: string;
+  /** Mail de contacto para consultas y pedidos de eliminación de datos (opcional; se muestra en las páginas de privacidad). */
+  contactEmail?: string;
   timezone: string;
   hours: Partial<Record<DayKey, Interval[]>>;
   delivery: { enabled: boolean; note: string };
