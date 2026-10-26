@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel de la farmacia</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="bar">
+    <h1 id="title">Panel de la farmacia</h1>
+    <nav class="tabs">
+      <button class="tab active" data-tab="orders">Pedidos <span id="badge-orders" class="count" hidden></span></button>
+      <button class="tab" data-tab="chats">Chats <span id="badge-chats" class="count urgent" hidden></span></button>
+    </nav>
+  </header>
+  <p id="error" class="error" hidden></p>
+  <main>
+    <section id="view-orders"><div id="columns" class="columns"></div></section>
+    <section id="view-chats" hidden>
+      <div class="chats">
+        <ul id="chat-list" class="chat-list"></ul>
+        <div class="chat-pane">
+          <div id="chat-head" class="chat-head"><span class="meta">Elegí una conversación</span></div>
+          <div id="chat-messages" class="messages"></div>
+          <form id="chat-form" class="composer" hidden>
+            <input id="chat-input" type="text" autocomplete="off" maxlength="1000" placeholder="Escribí una respuesta…">
+            <button class="btn primary">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/panel.js"></script>
+</body>
+</html>

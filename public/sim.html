@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulador de WhatsApp</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="sim">
+  <div class="phone">
+    <div class="chat-head">
+      <div><strong>Cliente de prueba</strong><div class="meta" id="who"></div></div>
+      <button class="btn" id="new-customer" type="button">Cliente nuevo</button>
+    </div>
+    <div id="messages" class="messages"></div>
+    <form id="form" class="composer">
+      <label class="btn" for="file" title="Adjuntar foto o PDF">📎</label>
+      <input id="file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">
+      <input id="text" type="text" autocomplete="off" maxlength="2000" placeholder="Escribí un mensaje…">
+      <button class="btn primary">Enviar</button>
+    </form>
+    <div class="sim-note">Simulador local: no envía nada por WhatsApp. Los pedidos aparecen en el panel.</div>
+  </div>
+  <script type="module" src="/sim.js"></script>
+</body>
+</html>

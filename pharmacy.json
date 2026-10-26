@@ -1,0 +1,20 @@
+{
+  "name": "Farmacia Demo",
+  "address": "Calle Falsa 123, Salta",
+  "phone": "387 000-0000",
+  "timezone": "America/Argentina/Buenos_Aires",
+  "hours": {
+    "lun": [["08:30", "13:00"], ["16:30", "21:00"]],
+    "mar": [["08:30", "13:00"], ["16:30", "21:00"]],
+    "mie": [["08:30", "13:00"], ["16:30", "21:00"]],
+    "jue": [["08:30", "13:00"], ["16:30", "21:00"]],
+    "vie": [["08:30", "13:00"], ["16:30", "21:00"]],
+    "sab": [["09:00", "13:00"], ["17:00", "21:00"]],
+    "dom": []
+  },
+  "delivery": {
+    "enabled": true,
+    "note": "Envíos dentro de la ciudad. El costo te lo confirmamos con el pedido."
+  },
+  "emergencyText": "⚠️ Si es una emergencia no esperes una respuesta por acá. Llamá ya al *107* (SAME) o al *911*. Por una intoxicación: Centro Nacional de Intoxicaciones *0800-333-0160*."
+}

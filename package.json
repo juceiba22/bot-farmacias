@@ -1,0 +1,23 @@
+{
+  "name": "farmacia-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bot de WhatsApp para una farmacia: pedidos, recetas, recordatorios y derivación a una persona.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.ts",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "typecheck": "tsc --noEmit",
+    "catalog:scrape": "node --disable-warning=ExperimentalWarning scripts/scrape-catalog.ts",
+    "catalog:search": "node --disable-warning=ExperimentalWarning scripts/search-catalog.ts",
+    "catalog:export": "node --disable-warning=ExperimentalWarning scripts/export-catalog.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
