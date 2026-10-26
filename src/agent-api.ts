@@ -1,18 +1,17 @@
 import { existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createAgentOps } from './agent-ops.ts';
+import type { AgentOps } from './agent-ops.ts';
+import type { AgentRunner } from './agent-llm.ts';
 import { systemPrompt, TOOLS } from './agent-prompt.ts';
 import type { Bot, Incoming } from './bot.ts';
-import type { Catalog, CatalogProduct, SaleType } from './catalog.ts';
+import type { Catalog } from './catalog.ts';
 import type { PharmacyConfig } from './config.ts';
 import type { Store } from './db.ts';
-import { formatHours, isOpenNow } from './hours.ts';
 import { HttpError, json, readJson, safeEqual, str } from './http.ts';
 import { contentTypeFor, MEDIA_FILE_RE, mediaPath, saveMedia } from './media.ts';
 
 const PHONE_RE = /^(\d{8,15}|sim-[a-z0-9]{3,12})$/;
-const MEDIA_WINDOW_MS = 6 * 3_600_000;
-const MAX_OPEN_ORDERS = 5;
-const MAX_ACTIVE_REMINDERS = 5;
 const HISTORY_MESSAGES = 20;
 
 type Deps = {
@@ -22,6 +21,8 @@ type Deps = {
   catalog?: Catalog;
   token: string;
   dataDir: string;
+  /** Si se pasa, habilita POST /agent/respond (Claude corre dentro del bot). */
+  makeRunner?: (ops: AgentOps) => AgentRunner;
 };
 
 /**
@@ -29,7 +30,9 @@ type Deps = {
  * El teléfono del cliente lo manda siempre el orquestador, nunca el modelo.
  */
 export function createAgentApi(deps: Deps) {
-  const { store, cfg, bot, catalog, dataDir } = deps;
+  const { store, cfg, bot, dataDir } = deps;
+  const ops = createAgentOps({ store, cfg, bot, catalog: deps.catalog });
+  const runner = deps.makeRunner?.(ops);
 
   function authenticate(req: IncomingMessage) {
     if (!deps.token) throw new HttpError(503, 'API de agente apagada: falta AGENT_API_TOKEN (mínimo 24 caracteres)');
@@ -43,40 +46,13 @@ export function createAgentApi(deps: Deps) {
     return phone;
   };
 
-  /** Casi todo exige que la persona haya aceptado el aviso de privacidad. */
-  function requireConsent(phone: string) {
-    if (!store.hasConsent(phone)) throw new HttpError(403, 'consent_required');
-  }
-
-  const pharmacyInfo = () => ({
-    name: cfg.name,
-    address: cfg.address,
-    phone: cfg.phone,
-    open_now: isOpenNow(cfg, store.clock()),
-    hours: formatHours(cfg),
-    delivery: cfg.delivery,
-  });
-
-  const publicProduct = (p: CatalogProduct) => ({
-    id: p.id,
-    name: p.name,
-    brand: p.brand,
-    category: p.category,
-    active_ingredient: p.ingredients,
-    presentation: p.presentation,
-    dose: p.dose,
-    sale_type: p.sale_type,
-    requires_prescription: p.sale_type === 'receta',
-    reference_price_ars: p.price,
-    description: p.description.slice(0, 300),
-  });
-
   /** Historial para el modelo: roles alternados que empiezan con el cliente. */
   function history(phone: string) {
     const turns: { role: 'user' | 'assistant'; content: string }[] = [];
     for (const m of store.lastMessages(phone, HISTORY_MESSAGES)) {
       const role = m.direction === 'in' ? 'user' : 'assistant';
       const content = m.media_file ? `[el cliente mandó un archivo adjunto]${m.body && m.body !== '[adjunto]' ? ` ${m.body}` : ''}` : m.body;
+      if (!content.trim()) continue;
       const last = turns[turns.length - 1];
       if (last?.role === role) last.content += `\n${content}`;
       else turns.push({ role, content });
@@ -85,14 +61,12 @@ export function createAgentApi(deps: Deps) {
     return turns;
   }
 
-  // ---------------------------------------------------------------- rutas
-
-  async function inbound(req: IncomingMessage, res: ServerResponse) {
-    const body = await readJson(req);
+  /** Un mensaje entrante: aplica las reglas fijas y decide si responde el código, nadie, o Claude. */
+  function screenInbound(body: Record<string, unknown>) {
     const phone = phoneOf(body.phone);
     const name = str(body.name, 40) || undefined;
     const messageId = str(body.message_id, 200);
-    if (messageId && !store.markProcessed(messageId)) return json(res, 200, { action: 'silent', reason: 'duplicate' });
+    if (messageId && !store.markProcessed(messageId)) return { phone, duplicate: true as const };
 
     const type = str(body.type, 12) || 'text';
     let incoming: Incoming;
@@ -105,31 +79,74 @@ export function createAgentApi(deps: Deps) {
     } else {
       incoming = { from: phone, name, type: 'text', text: str(body.text, 2000) };
     }
+    return { phone, duplicate: false as const, decision: bot.screenForAgent(incoming), name };
+  }
 
-    const decision = bot.screenForAgent(incoming);
+  const agentContext = (phone: string, notes: string[]) => ({
+    messages: history(phone),
+    notes,
+    pharmacy: ops.pharmacyInfo(),
+  });
+
+  const logReplies = (phone: string, replies: string[]) => {
+    if (!store.canLog(phone)) return;
+    for (const body of replies) store.logMessage({ phone, direction: 'out', body });
+  };
+
+  // Un cliente a la vez: si manda dos mensajes seguidos, el segundo espera a que termine el primero.
+  const locks = new Map<string, Promise<unknown>>();
+  function withLock<T>(key: string, job: () => Promise<T>): Promise<T> {
+    const previous = locks.get(key) ?? Promise.resolve();
+    const result = previous.then(job);
+    const tail = result.catch(() => undefined);
+    locks.set(key, tail);
+    void tail.then(() => {
+      if (locks.get(key) === tail) locks.delete(key);
+    });
+    return result;
+  }
+
+  // ---------------------------------------------------------------- rutas
+
+  async function inbound(req: IncomingMessage, res: ServerResponse) {
+    const screened = screenInbound(await readJson(req));
+    if (screened.duplicate) return json(res, 200, { action: 'silent', reason: 'duplicate' });
+    const { phone, decision, name } = screened;
     if (decision.action !== 'agent') return json(res, 200, decision);
     json(res, 200, {
       action: 'agent',
       customer: { phone, name: store.getCustomer(phone)?.name ?? name ?? null },
-      messages: history(phone),
-      notes: decision.notes,
-      pharmacy: pharmacyInfo(),
+      ...agentContext(phone, decision.notes),
     });
+  }
+
+  /** Todo en una llamada: reglas fijas y, si corresponde, Claude. Devuelve siempre los textos a enviar. */
+  async function respond(req: IncomingMessage, res: ServerResponse) {
+    if (!runner) throw new HttpError(503, 'Claude apagado: falta ANTHROPIC_API_KEY');
+    const body = await readJson(req);
+    const phone = phoneOf(body.phone);
+    const out = await withLock(phone, async () => {
+      const screened = screenInbound(body);
+      if (screened.duplicate) return { action: 'silent', reason: 'duplicate' };
+      const { decision } = screened;
+      if (decision.action === 'silent') return { action: 'silent' };
+      if (decision.action === 'reply') {
+        logReplies(phone, decision.replies);
+        return { action: 'reply', source: 'rules', replies: decision.replies };
+      }
+      const replies = await runner.run(phone, agentContext(phone, decision.notes));
+      logReplies(phone, replies);
+      return { action: 'reply', source: 'claude', replies };
+    });
+    json(res, 200, out);
   }
 
   async function outbound(req: IncomingMessage, res: ServerResponse) {
     const body = await readJson(req);
     const phone = phoneOf(body.phone);
-    const texts = Array.isArray(body.replies) ? body.replies : [body.text];
-    let logged = 0;
-    for (const text of texts) {
-      const clean = str(text, 4000);
-      if (clean && store.canLog(phone)) {
-        store.logMessage({ phone, direction: 'out', body: clean });
-        logged++;
-      }
-    }
-    json(res, 200, { ok: true, logged });
+    const texts = (Array.isArray(body.replies) ? body.replies : [body.text]).map((t) => str(t, 4000)).filter(Boolean);
+    logReplies(phone, texts);
+    json(res, 200, { ok: true, logged: store.canLog(phone) ? texts.length : 0 });
   }
 
   async function uploadMedia(req: IncomingMessage, res: ServerResponse) {
@@ -142,107 +159,38 @@ export function createAgentApi(deps: Deps) {
     json(res, 200, saved);
   }
 
-  function searchCatalog(res: ServerResponse, url: URL) {
-    if (!catalog) throw new HttpError(503, 'Catálogo no cargado: corré npm run catalog:scrape');
-    const query = str(url.searchParams.get('q'), 120);
-    if (!query) throw new HttpError(400, 'Falta q');
-    const saleType = url.searchParams.get('sale_type');
-    const limit = Math.min(Number(url.searchParams.get('limit')) || 8, 8);
-    // Se pide de más y se filtra después: el índice no filtra por tipo de venta.
-    const found = catalog.search(query, saleType ? 40 : limit).filter((p) => !saleType || p.sale_type === (saleType as SaleType));
-    json(res, 200, {
-      note: 'Precios de referencia de una muestra de demostración; el equipo confirma el total. El catálogo no informa stock.',
-      results: found.slice(0, limit).map(publicProduct),
-    });
-  }
-
-  async function createOrder(req: IncomingMessage, res: ServerResponse) {
-    const body = await readJson(req);
-    const phone = phoneOf(body.phone);
-    requireConsent(phone);
-
-    const kind = str(body.kind, 10);
-    if (kind !== 'pedido' && kind !== 'receta') throw new HttpError(400, 'kind debe ser pedido o receta');
-    const delivery = str(body.delivery, 10);
-    if (delivery !== 'retiro' && delivery !== 'envio') throw new HttpError(400, 'delivery debe ser retiro o envio');
-    const detail = str(body.detail, 2000);
-    if (kind === 'pedido' && !detail) throw new HttpError(400, 'Falta detail');
-    const address = str(body.address, 300);
-    if (delivery === 'envio' && address.length < 5) throw new HttpError(400, 'Para un envío hace falta la dirección completa');
-
-    const open = store.ordersForPhone(phone, 20).filter((o) => o.status !== 'entregado' && o.status !== 'cancelado');
-    if (open.length >= MAX_OPEN_ORDERS) throw new HttpError(409, 'Ya hay demasiados pedidos abiertos para esta persona: derivala al equipo');
-
-    const media = store.unattachedMedia(phone, new Date(store.clock().getTime() - MEDIA_WINDOW_MS).toISOString());
-    if (kind === 'receta' && !media.length) throw new HttpError(422, 'Falta la foto o el PDF de la receta: pedíselo al cliente');
-
-    const id = store.createOrder({ phone, kind, detail, delivery, address: delivery === 'envio' ? address : undefined, media });
-    json(res, 200, {
-      order_id: id,
-      status: 'nuevo',
-      attached_files: media.length,
-      open_now: isOpenNow(cfg, store.clock()),
-      message: `Registrado como ${kind} #${id}. El equipo revisa disponibilidad y confirma el total por este chat.`,
-    });
-  }
-
-  async function createReminder(req: IncomingMessage, res: ServerResponse) {
-    const body = await readJson(req);
-    const phone = phoneOf(body.phone);
-    requireConsent(phone);
-    const medication = str(body.medication, 120);
-    const days = Number(body.days);
-    if (medication.length < 3) throw new HttpError(400, 'Falta medication');
-    if (!Number.isInteger(days) || days < 1 || days > 365) throw new HttpError(400, 'days debe ser un entero entre 1 y 365');
-    if (store.activeReminderCount(phone) >= MAX_ACTIVE_REMINDERS) throw new HttpError(409, 'Ya tiene el máximo de recordatorios activos');
-    const due = new Date(store.clock().getTime() + days * 86_400_000);
-    store.createReminder(phone, medication, due.toISOString());
-    json(res, 200, { ok: true, due_date: due.toLocaleDateString('es-AR', { timeZone: cfg.timezone, day: 'numeric', month: 'long' }) });
-  }
-
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const method = req.method ?? 'GET';
     const path = url.pathname;
 
-    if (method === 'GET' && path === '/agent/config') {
-      return json(res, 200, { system_prompt: systemPrompt(cfg), tools: TOOLS });
+    if (method === 'GET' && path === '/agent/config') return json(res, 200, { system_prompt: systemPrompt(cfg), tools: TOOLS });
+    if (method === 'GET' && path === '/agent/pharmacy') return json(res, 200, ops.pharmacyInfo());
+    if (method === 'GET' && path === '/agent/catalog/search') {
+      return json(res, 200, ops.searchCatalog({ query: url.searchParams.get('q'), saleType: url.searchParams.get('sale_type'), limit: url.searchParams.get('limit') }));
     }
-    if (method === 'GET' && path === '/agent/pharmacy') return json(res, 200, pharmacyInfo());
-    if (method === 'GET' && path === '/agent/catalog/search') return searchCatalog(res, url);
 
     const product = /^\/agent\/catalog\/products\/(\d{1,12})$/.exec(path);
-    if (method === 'GET' && product) {
-      const found = catalog?.get(product[1]);
-      if (!found) throw new HttpError(404, 'Producto inexistente');
-      return json(res, 200, publicProduct(found));
-    }
+    if (method === 'GET' && product) return json(res, 200, ops.getProduct(product[1]));
 
-    if (method === 'POST' && path === '/agent/inbound') return inbound(req, res);
-    if (method === 'POST' && path === '/agent/outbound') return outbound(req, res);
-    if (method === 'POST' && path === '/agent/media') return uploadMedia(req, res);
-    if (method === 'POST' && path === '/agent/orders') return createOrder(req, res);
-    if (method === 'POST' && path === '/agent/reminders') return createReminder(req, res);
+    if (method === 'GET' && path === '/agent/orders') return json(res, 200, ops.listOrders(phoneOf(url.searchParams.get('phone'))));
 
-    if (method === 'GET' && path === '/agent/orders') {
-      const phone = phoneOf(url.searchParams.get('phone'));
-      requireConsent(phone);
-      return json(res, 200, store.ordersForPhone(phone, 5).map((o) => ({
-        order_id: o.id, kind: o.kind, status: o.status, detail: o.detail.slice(0, 300), delivery: o.delivery, created_at: o.created_at,
-      })));
-    }
+    if (method === 'POST') {
+      if (path === '/agent/respond') return respond(req, res);
+      if (path === '/agent/inbound') return inbound(req, res);
+      if (path === '/agent/outbound') return outbound(req, res);
+      if (path === '/agent/media') return uploadMedia(req, res);
 
-    if (method === 'POST' && path === '/agent/reminders/cancel') {
-      const phone = phoneOf((await readJson(req)).phone);
-      requireConsent(phone);
-      return json(res, 200, { ok: true, cancelled: store.cancelReminders(phone) });
-    }
-
-    if (method === 'POST' && path === '/agent/handoff') {
-      const body = await readJson(req);
-      const phone = phoneOf(body.phone);
-      requireConsent(phone);
-      const message = bot.handoffPhone(phone, str(body.reason, 300), body.urgent === true);
-      return json(res, 200, { ok: true, message });
+      const withPhone: Record<string, (phone: string, body: Record<string, unknown>) => unknown> = {
+        '/agent/orders': ops.createOrder,
+        '/agent/reminders': ops.createReminder,
+        '/agent/reminders/cancel': (phone) => ops.cancelReminders(phone),
+        '/agent/handoff': (phone, body) => ops.handoff(phone, body),
+      };
+      const action = withPhone[path];
+      if (action) {
+        const body = await readJson(req);
+        return json(res, 200, action(phoneOf(body.phone), body));
+      }
     }
 
     throw new HttpError(404, 'No encontrado');

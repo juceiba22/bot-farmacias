@@ -12,6 +12,39 @@ WhatsApp ──▶ n8n ──▶ POST /agent/inbound ──┬─ action: reply 
 
 **Lo importante:** el código decide antes que el modelo. Consentimiento, emergencias, `borrar mis datos`, `baja`, pedidos de hablar con una persona y consultas médicas se resuelven en `/agent/inbound` sin pasar por Claude.
 
+## Camino recomendado: `POST /agent/respond` (Claude corre dentro del bot)
+
+Con `ANTHROPIC_API_KEY` cargada en el servidor, n8n no necesita ni nodos de IA ni herramientas: manda cada mensaje a un solo endpoint y recibe los textos para enviar.
+
+```
+WhatsApp Trigger ──▶ HTTP Request: POST /agent/respond ──▶ ¿action = reply? ──▶ WhatsApp: enviar cada texto de "replies"
+```
+
+Pedido:
+
+```json
+{ "phone": "5493875550001", "name": "Ana", "type": "text", "text": "hola, ¿tienen ibuprofeno?", "message_id": "wamid.XXX" }
+```
+
+Respuesta:
+
+```json
+{ "action": "reply", "source": "rules" | "claude", "replies": ["texto 1", "texto 2"] }
+{ "action": "silent" }
+```
+
+- `source: "rules"`: respondió el código (aviso de privacidad, emergencias, consulta médica derivada, `borrar mis datos`, `baja`…). No se llamó a Claude.
+- `source: "claude"`: respondió Claude con las herramientas (catálogo, pedidos, recordatorios, derivación). El teléfono lo toma el servidor del pedido; nunca de lo que escriba el modelo.
+- `silent`: la conversación está en manos de una persona del equipo, o el mensaje era un reintento. No se envía nada.
+- Los mensajes (entrantes y salientes) quedan registrados solos: **no hace falta llamar a `/agent/outbound`**.
+- Dos mensajes seguidos del mismo cliente se atienden en orden (el servidor los encola por teléfono), así que no hace falta limitar la concurrencia de n8n.
+- Si Claude falla (API caída, sin saldo, rechazo del modelo, respuesta cortada), el cliente recibe un aviso y el chat pasa a una persona del equipo, en vez de quedar sin respuesta.
+- Variables: `ANTHROPIC_API_KEY`, y opcionales `ANTHROPIC_MODEL` (por defecto `claude-opus-5-5`) y `ANTHROPIC_EFFORT`. Para bajar costo y latencia se puede probar `claude-sonnet-5-5` o `claude-haiku-5-5`, pero conviene repetir antes las pruebas de seguridad de más abajo.
+
+Fotos y PDF: ver *Fotos y recetas* más abajo. Con `/agent/respond` el paso 2 (`type: "media"`) se manda igual a `/agent/respond`.
+
+Los endpoints siguientes (`/agent/inbound`, herramientas sueltas) siguen disponibles si preferís armar el agente en n8n.
+
 ## Configuración
 
 Generá un token largo y cargalo como variable de entorno (mínimo 24 caracteres; sin token la API queda apagada):

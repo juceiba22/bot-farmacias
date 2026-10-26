@@ -10,4 +10,3 @@ docs
 Dockerfile
 .dockerignore
 tsconfig.json
-package-lock.json

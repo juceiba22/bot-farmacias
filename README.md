@@ -27,7 +27,7 @@ npm start
 Probá un pedido completo en el simulador y mirá cómo aparece en el panel. Desde el panel podés marcar el pedido como *listo* (el cliente recibe el aviso), o responder a mano en la pestaña *Chats*.
 
 ```bash
-npm test         # 45 pruebas: bot, base de datos, webhook, API de agente y catálogo semilla
+npm test         # 60 pruebas: bot, base de datos, webhook, API de agente, bucle de Claude y catálogo semilla
 npm run typecheck
 ```
 
@@ -36,7 +36,7 @@ npm run typecheck
 - `npm run catalog:scrape` arma `data/catalog.db` con una muestra del catálogo público de Farmacity (unos 1.600 productos; una consulta por segundo, solo endpoints que su `robots.txt` no excluye). Los precios son una foto de referencia y el sitio no informa stock real. Es solo para demos: no la uses para vender ni muestres su marca.
 - `npm run catalog:search -- ibuprofeno` prueba la búsqueda.
 - `npm run catalog:export` empaqueta el catálogo en `seed/catalog.json.gz` (412 KB), que viaja con el código: al arrancar sin catálogo, el servidor lo importa solo.
-- Con `AGENT_API_TOKEN` definido, el servidor expone `/agent/*` para que n8n y Claude conversen, busquen en el catálogo y creen pedidos. Los filtros de seguridad (consentimiento, emergencias, consultas médicas) siguen aplicándose por código antes de que intervenga el modelo. Detalle y receta de n8n en [docs/agent-api.md](docs/agent-api.md).
+- Con `AGENT_API_TOKEN` definido, el servidor expone `/agent/*` para que n8n y Claude conversen, busquen en el catálogo y creen pedidos. Los filtros de seguridad (consentimiento, emergencias, consultas médicas) siguen aplicándose por código antes de que intervenga el modelo. Con `ANTHROPIC_API_KEY` cargada, `POST /agent/respond` hace todo en una llamada (reglas fijas y, si corresponde, Claude con herramientas), y n8n queda con tres nodos. Detalle en [docs/agent-api.md](docs/agent-api.md).
 - Para publicarlo en Railway (Dockerfile, volumen, variables y n8n): [docs/railway.md](docs/railway.md).
 
 ## Personalizar

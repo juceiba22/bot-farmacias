@@ -1,4 +1,4 @@
-# Node 24 corre TypeScript directo y trae SQLite: no hace falta compilar ni instalar dependencias.
+# Node 24 corre TypeScript directo y trae SQLite: no hace falta compilar.
 FROM node:24-slim
 
 ENV NODE_ENV=production \
@@ -8,7 +8,10 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json ./
+# Única dependencia de producción: el SDK oficial de Anthropic.
+RUN npm ci --omit=dev
+
 COPY pharmacy.json ./
 COPY src ./src
 COPY public ./public

@@ -42,6 +42,13 @@ export const env = {
   /** Token que usa n8n (o cualquier otro cliente) para llamar a /agent. Mínimo 24 caracteres; si falta, la API queda apagada. */
   agentToken: (e.AGENT_API_TOKEN || '').length >= 24 ? (e.AGENT_API_TOKEN as string) : '',
   agentTokenTooShort: Boolean(e.AGENT_API_TOKEN) && (e.AGENT_API_TOKEN as string).length < 24,
+  /** Claude corre dentro del bot (POST /agent/respond). Sin clave, ese endpoint queda apagado. */
+  anthropic: {
+    apiKey: e.ANTHROPIC_API_KEY || '',
+    model: e.ANTHROPIC_MODEL || 'claude-opus-5-5',
+    /** low | medium | high | xhigh | max. Vacío = el valor por defecto del modelo. */
+    effort: e.ANTHROPIC_EFFORT || '',
+  },
   catalogFile: e.CATALOG_DB || join(e.DATA_DIR || join(ROOT, 'data'), 'catalog.db'),
   /** Catálogo comprimido que viaja con el código; se importa solo la primera vez que arranca sin catálogo. */
   catalogSeed: e.CATALOG_SEED || join(ROOT, 'seed', 'catalog.json.gz'),

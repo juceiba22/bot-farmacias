@@ -34,6 +34,8 @@ Sin GitHub también se puede desplegar desde esta carpeta con la CLI de Railway 
 |---|---|
 | `PANEL_PASSWORD` | Una clave larga. **Obligatoria**: en producción el servidor no arranca sin ella. |
 | `AGENT_API_TOKEN` | Un token de 24+ caracteres: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+| `ANTHROPIC_API_KEY` | La API key de Anthropic (console.anthropic.com). Activa `POST /agent/respond`: Claude corre dentro del bot. |
+| `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT` | Opcionales. Por defecto `claude-opus-5-5` y el esfuerzo del modelo. Para gastar menos: `claude-sonnet-5-5` o `claude-haiku-5-5`. |
 | `PORT` | `3000` (fijalo para que n8n sepa a qué puerto llamar por la red privada) |
 | `RETENTION_DAYS` | `90`, o lo que defina la farmacia |
 | `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_REMINDER_TEMPLATE` | Solo si el servidor tiene que **enviar recordatorios** (ver más abajo) |

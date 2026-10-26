@@ -2,7 +2,9 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
+import Anthropic from '@anthropic-ai/sdk';
 import { createAgentApi } from './agent-api.ts';
+import { createAgentRunner } from './agent-llm.ts';
 import { createBot } from './bot.ts';
 import type { Incoming } from './bot.ts';
 import { openCatalog } from './catalog.ts';
@@ -44,7 +46,18 @@ if (existsSync(env.catalogFile)) {
     console.error('No se pudo abrir el catálogo:', err instanceof Error ? err.message : err);
   }
 }
-const agentApi = createAgentApi({ store, cfg, bot, catalog, token: env.agentToken, dataDir: env.dataDir });
+const anthropicClient = env.anthropic.apiKey ? new Anthropic({ apiKey: env.anthropic.apiKey }) : undefined;
+const agentApi = createAgentApi({
+  store,
+  cfg,
+  bot,
+  catalog,
+  token: env.agentToken,
+  dataDir: env.dataDir,
+  makeRunner: anthropicClient
+    ? (ops) => createAgentRunner({ client: anthropicClient, model: env.anthropic.model, effort: env.anthropic.effort, cfg, ops, bot })
+    : undefined,
+});
 
 // ---------------------------------------------------------------- mensajes
 
@@ -301,6 +314,7 @@ server.listen(env.port, env.host, () => {
   if (env.panelPasswordGenerated) console.log(`  Clave generada para esta sesión: ${env.panelPassword}  (fijala con PANEL_PASSWORD en .env)`);
   if (env.simulator) console.log(`  Simulador de chat:   ${base}/sim`);
   if (env.agentToken) console.log(`  API para n8n/Claude: ${base}/agent/*  (Bearer token)${catalog ? ` · catálogo: ${catalog.count()} productos` : ' · ⚠ sin catálogo (npm run catalog:scrape)'}`);
+  if (env.agentToken) console.log(`  Claude (/agent/respond): ${anthropicClient ? `activo · modelo ${env.anthropic.model}${env.anthropic.effort ? ` · esfuerzo ${env.anthropic.effort}` : ''}` : 'apagado (falta ANTHROPIC_API_KEY)'}`);
   else console.log(`  API para n8n/Claude: apagada. ${env.agentTokenTooShort ? 'AGENT_API_TOKEN tiene menos de 24 caracteres.' : 'Definí AGENT_API_TOKEN (24+ caracteres) para activarla.'}`);
   if (env.wa.enabled) {
     console.log('  WhatsApp: conectado. Webhook en /webhook');

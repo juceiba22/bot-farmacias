@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import type { PharmacyConfig } from './config.ts';
 
 /** Instrucciones para el modelo (Claude). Las reglas duras están además aplicadas por código en bot.ts. */
@@ -35,13 +36,11 @@ export function systemPrompt(cfg: PharmacyConfig): string {
 - Cuando uses una herramienta y falle, no inventes el resultado: avisá que hubo un problema y ofrecé pasar con el equipo.`;
 }
 
-type Tool = { name: string; description: string; input_schema: Record<string, unknown> };
-
 /**
  * Herramientas en el formato de la API de Anthropic. El teléfono del cliente NO es un parámetro:
  * lo agrega quien orquesta (n8n) a partir del mensaje entrante, para que el modelo no pueda actuar sobre otra persona.
  */
-export const TOOLS: Tool[] = [
+export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'get_pharmacy_info',
     description: 'Devuelve dirección, teléfono, horarios, si la farmacia está abierta ahora y condiciones de envío.',
