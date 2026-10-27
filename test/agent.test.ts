@@ -275,7 +275,7 @@ test('outbound registra lo que respondió el agente y vuelve en el historial', a
 test('la configuración para el modelo no deja que el modelo elija el teléfono', async () => {
   const res = await call('GET', '/agent/config');
   assert.equal(res.status, 200);
-  assert.match(res.body.system_prompt, /Farmacia Demo/);
+  assert.ok(res.body.system_prompt.includes(loadPharmacy().name));
   assert.match(res.body.system_prompt, /NUNCA des indicaciones de salud/);
   assert.deepEqual(res.body.tools.map((t: any) => t.name), TOOLS.map((t) => t.name));
   for (const tool of res.body.tools) {

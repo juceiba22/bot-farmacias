@@ -68,7 +68,7 @@ test('una respuesta sin herramientas se devuelve como un solo mensaje', async ()
   assert.deepEqual(params.messages, [{ role: 'user', content: 'hola' }]);
   const system = (params.system as Anthropic.TextBlockParam[]).map((b) => b.text).join('\n');
   assert.match(system, /NUNCA des indicaciones de salud/);
-  assert.match(system, /Farmacia Demo/);
+  assert.ok(system.includes(loadPharmacy().name));
   assert.match(system, /Nota de prueba/);
   assert.equal('temperature' in params, false, 'los modelos nuevos rechazan temperature');
   assert.equal('thinking' in params, false);

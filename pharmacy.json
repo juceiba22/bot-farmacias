@@ -1,7 +1,7 @@
 {
-  "name": "Farmacia Demo",
-  "address": "Calle Falsa 123, Salta",
-  "phone": "387 000-0000",
+  "name": "Farmacia Aurora",
+  "address": "Av. Belgrano 1250, Salta Capital",
+  "phone": "387 555-0142",
   "timezone": "America/Argentina/Buenos_Aires",
   "hours": {
     "lun": [["08:30", "13:00"], ["16:30", "21:00"]],

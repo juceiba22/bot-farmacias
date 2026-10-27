@@ -6,7 +6,7 @@ import { renderDataDeletion, renderPrivacyPolicy } from '../src/legal.ts';
 test('la política de privacidad nombra a la farmacia, el plazo de conservación y cómo borrar los datos', () => {
   const cfg = loadPharmacy();
   const html = renderPrivacyPolicy(cfg, 90);
-  assert.match(html, /<title>Política de privacidad — Farmacia Demo<\/title>/);
+  assert.ok(html.includes(`<title>Política de privacidad — ${cfg.name}</title>`));
   assert.match(html, /hasta 90 días/);
   assert.match(html, /borrar mis datos/);
   assert.match(html, /href="\/eliminacion-datos"/);
