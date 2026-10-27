@@ -14,6 +14,7 @@ import { env, loadPharmacy, ROOT } from './config.ts';
 import { createStore, ORDER_STATUSES } from './db.ts';
 import type { OrderStatus } from './db.ts';
 import { HttpError, json, readBody, readJson, safeEqual, send, str } from './http.ts';
+import { renderLanding } from './landing.ts';
 import { renderDataDeletion, renderPrivacyPolicy } from './legal.ts';
 import { contentTypeFor, deleteMedia, MEDIA_FILE_RE, mediaPath, saveMedia } from './media.ts';
 import { createReminderRunner } from './reminders.ts';
@@ -128,6 +129,7 @@ const HTML_CSP =
 
 const PUBLIC_FILES: Record<string, { file: string; type: string }> = {
   '/app.css': { file: 'app.css', type: 'text/css; charset=utf-8' },
+  '/landing.css': { file: 'landing.css', type: 'text/css; charset=utf-8' },
   '/panel': { file: 'panel.html', type: 'text/html; charset=utf-8' },
   '/panel.js': { file: 'panel.js', type: 'text/javascript; charset=utf-8' },
   '/sim': { file: 'sim.html', type: 'text/html; charset=utf-8' },
@@ -283,13 +285,16 @@ const server = createServer(async (req, res) => {
     if (path === '/health') return send(res, 200, 'ok', { 'Content-Type': 'text/plain' });
     if (path === '/webhook') return await webhook(req, res, url);
     if (await agentApi.handle(req, res, url)) return;
-    if (path === '/app.css') return sendPublic(res, path);
+    if (path === '/app.css' || path === '/landing.css') return sendPublic(res, path);
+    if (req.method === 'GET' && path === '/') {
+      const html = renderLanding({ whatsapp: env.landing.whatsapp, email: env.landing.email, retentionDays: env.retentionDays });
+      return send(res, 200, html, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': HTML_CSP });
+    }
     if (req.method === 'GET' && (path === '/privacidad' || path === '/eliminacion-datos')) {
       const html = path === '/privacidad' ? renderPrivacyPolicy(cfg, env.retentionDays) : renderDataDeletion(cfg, env.retentionDays);
       return send(res, 200, html, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': HTML_CSP });
     }
     if (env.simulator && path.startsWith('/sim')) return await simulator(req, res, url);
-    if (path === '/') return send(res, 302, '', { Location: '/panel' });
 
     if (!authorized(req)) {
       return send(res, 401, 'Se necesita usuario y clave', { 'WWW-Authenticate': 'Basic realm="Farmacia", charset="UTF-8"' });

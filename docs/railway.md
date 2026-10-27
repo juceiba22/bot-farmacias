@@ -37,6 +37,7 @@ Sin GitHub también se puede desplegar desde esta carpeta con la CLI de Railway 
 | `ANTHROPIC_API_KEY` | La API key de Anthropic (console.anthropic.com). Activa `POST /agent/respond`: Claude corre dentro del bot. |
 | `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT` | Opcionales. Por defecto `claude-opus-5-5` y el esfuerzo del modelo. Para gastar menos: `claude-sonnet-5-5` o `claude-haiku-5-5`. |
 | `WA_ACCESS_TOKEN` | El **token permanente** de Meta (el mismo que usa n8n para enviar). Lo necesita el bot para **descargar las fotos de recetas**. Sin él, los adjuntos no se pueden recibir. |
+| `LANDING_WHATSAPP`, `LANDING_CONTACT_EMAIL` | Opcionales. Datos de contacto de la página de inicio (`/`): el número de WhatsApp del bot (solo dígitos, con código de país, por ejemplo `5491178142296`) y un mail comercial. Sin ellos, la página no muestra los botones correspondientes. |
 | `PORT` | `3000` (fijalo para que n8n sepa a qué puerto llamar por la red privada) |
 | `RETENTION_DAYS` | `90`, o lo que defina la farmacia |
 | `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_REMINDER_TEMPLATE` | Solo si el servidor tiene que **enviar recordatorios** (ver más abajo) |

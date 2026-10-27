@@ -51,6 +51,12 @@ export const env = {
     /** low | medium | high | xhigh | max. Vacío = el valor por defecto del modelo. */
     effort: e.ANTHROPIC_EFFORT || '',
   },
+  /** Datos de contacto que muestra la página de inicio (/). Los dos son opcionales: sin ellos, no se muestran los botones. */
+  landing: {
+    /** Número de WhatsApp del bot, solo dígitos con código de país (por ejemplo, 5491112345678). */
+    whatsapp: /^\d{8,15}$/.test(e.LANDING_WHATSAPP || '') ? (e.LANDING_WHATSAPP as string) : '',
+    email: /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(e.LANDING_CONTACT_EMAIL || '') ? (e.LANDING_CONTACT_EMAIL as string) : '',
+  },
   catalogFile: e.CATALOG_DB || join(e.DATA_DIR || join(ROOT, 'data'), 'catalog.db'),
   /** Catálogo comprimido que viaja con el código; se importa solo la primera vez que arranca sin catálogo. */
   catalogSeed: e.CATALOG_SEED || join(ROOT, 'seed', 'catalog.json.gz'),
