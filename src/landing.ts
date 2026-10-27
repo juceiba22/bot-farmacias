@@ -5,6 +5,12 @@ export type LandingOptions = {
   /** Mail de contacto comercial. Vacío = no se muestra el botón de contacto. */
   email: string;
   retentionDays: number;
+  /** Marca o empresa de la que es el servicio. Vacío = no se muestra la leyenda "un servicio de". */
+  company?: string;
+  /** Sitio web de esa marca (https). Vacío = se muestra el nombre sin enlace. */
+  companyUrl?: string;
+  /** Titular legal del servicio (por ejemplo, nombre y CUIT). Vacío = no se muestra. Conecta la marca con el nombre legal verificado. */
+  legal?: string;
 };
 
 const SERVICE = 'Farma-asistente';
@@ -64,7 +70,10 @@ function faq(retentionDays: number): [string, string][] {
 }
 
 export function renderLanding(options: LandingOptions): string {
-  const { whatsapp, email, retentionDays } = options;
+  const { whatsapp, email, retentionDays, company = '', companyUrl = '', legal = '' } = options;
+  const companyName = company ? escape(company) : '';
+  const companyLink = companyName && companyUrl ? `<a href="${escape(companyUrl)}" rel="noopener">${companyName}</a>` : companyName;
+  const byline = companyLink ? `${SERVICE} es un servicio de ${companyLink}.` : '';
   const tryLink = whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent('Hola')}` : '';
   const contactLink = email ? `mailto:${escape(email)}?subject=${encodeURIComponent('Quiero el asistente para mi farmacia')}` : '';
 
@@ -106,7 +115,7 @@ export function renderLanding(options: LandingOptions): string {
           <p class="eyebrow">Asistente con inteligencia artificial para WhatsApp</p>
           <h1>Tu farmacia atiende por WhatsApp, también cuando está cerrada.</h1>
           <p class="lead">Responde consultas, toma pedidos y recibe recetas por foto. Tu equipo confirma todo desde un panel simple, y las consultas de salud las responde siempre un farmacéutico.</p>
-          ${heroActions}
+          ${heroActions}${byline ? `\n          <p class="byline">${byline}</p>` : ''}
         </div>
         <figure class="phone" aria-label="Ejemplo de conversación">
           <div class="phone-head"><span class="avatar" aria-hidden="true">+</span><span>Tu farmacia</span></div>
@@ -179,13 +188,13 @@ export function renderLanding(options: LandingOptions): string {
 
   <footer class="foot">
     <div class="wrap foot-inner">
-      <span>${SERVICE}</span>
+      <span>${byline || SERVICE}</span>
       <nav aria-label="Información legal">
         <a href="/privacidad">Política de privacidad</a>
         <a href="/eliminacion-datos">Eliminación de datos</a>
       </nav>
     </div>
-    <p class="wrap fine">Los ejemplos de esta página son ilustrativos. La demostración usa un catálogo de ejemplo con precios de referencia.</p>
+    ${legal ? `<p class="wrap fine">Titular: ${escape(legal)}</p>\n    ` : ''}<p class="wrap fine">Los ejemplos de esta página son ilustrativos. La demostración usa un catálogo de ejemplo con precios de referencia.</p>
   </footer>
 </body>
 </html>

@@ -287,7 +287,7 @@ const server = createServer(async (req, res) => {
     if (await agentApi.handle(req, res, url)) return;
     if (path === '/app.css' || path === '/landing.css') return sendPublic(res, path);
     if (req.method === 'GET' && path === '/') {
-      const html = renderLanding({ whatsapp: env.landing.whatsapp, email: env.landing.email, retentionDays: env.retentionDays });
+      const html = renderLanding({ ...env.landing, retentionDays: env.retentionDays });
       return send(res, 200, html, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': HTML_CSP });
     }
     if (req.method === 'GET' && (path === '/privacidad' || path === '/eliminacion-datos')) {

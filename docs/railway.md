@@ -38,6 +38,8 @@ Sin GitHub también se puede desplegar desde esta carpeta con la CLI de Railway 
 | `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT` | Opcionales. Por defecto `claude-opus-5-5` y el esfuerzo del modelo. Para gastar menos: `claude-sonnet-5-5` o `claude-haiku-5-5`. |
 | `WA_ACCESS_TOKEN` | El **token permanente** de Meta (el mismo que usa n8n para enviar). Lo necesita el bot para **descargar las fotos de recetas**. Sin él, los adjuntos no se pueden recibir. |
 | `LANDING_WHATSAPP`, `LANDING_CONTACT_EMAIL` | Opcionales. Datos de contacto de la página de inicio (`/`): el número de WhatsApp del bot (solo dígitos, con código de país, por ejemplo `5491178142296`) y un mail comercial. Sin ellos, la página no muestra los botones correspondientes. |
+| `LANDING_COMPANY`, `LANDING_COMPANY_URL` | Opcionales. La marca de la que es el servicio y su sitio web (https), por ejemplo `AgroTabaco` y `https://agrotabaco.com/`. La landing muestra "Farma-asistente es un servicio de …", que es lo que Meta compara con el nombre visible de WhatsApp. |
+| `LANDING_LEGAL` | Opcional. El titular legal que se muestra en el pie de la landing (nombre y CUIT, como en cualquier sitio comercial). Conecta la marca con el nombre legal verificado en Meta. |
 | `PORT` | `3000` (fijalo para que n8n sepa a qué puerto llamar por la red privada) |
 | `RETENTION_DAYS` | `90`, o lo que defina la farmacia |
 | `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_REMINDER_TEMPLATE` | Solo si el servidor tiene que **enviar recordatorios** (ver más abajo) |

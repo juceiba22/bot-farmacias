@@ -56,6 +56,12 @@ export const env = {
     /** Número de WhatsApp del bot, solo dígitos con código de país (por ejemplo, 5491112345678). */
     whatsapp: /^\d{8,15}$/.test(e.LANDING_WHATSAPP || '') ? (e.LANDING_WHATSAPP as string) : '',
     email: /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(e.LANDING_CONTACT_EMAIL || '') ? (e.LANDING_CONTACT_EMAIL as string) : '',
+    /** Marca o empresa de la que es el servicio ("Farma-asistente es un servicio de …"). Respalda el nombre visible de WhatsApp. */
+    company: (e.LANDING_COMPANY || '').trim().slice(0, 80),
+    /** Sitio web de esa marca o empresa; tiene que ser https. Si falta, se muestra el nombre sin enlace. */
+    companyUrl: /^https:\/\/[^\s"'<>]+$/.test(e.LANDING_COMPANY_URL || '') ? (e.LANDING_COMPANY_URL as string) : '',
+    /** Titular legal que se muestra en el pie (por ejemplo, "Julio César Ibarra · CUIT 20-…"). Opcional. */
+    legal: (e.LANDING_LEGAL || '').trim().slice(0, 160),
   },
   catalogFile: e.CATALOG_DB || join(e.DATA_DIR || join(ROOT, 'data'), 'catalog.db'),
   /** Catálogo comprimido que viaja con el código; se importa solo la primera vez que arranca sin catálogo. */

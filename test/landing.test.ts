@@ -49,3 +49,29 @@ test('no promete lo que el servicio no hace', () => {
   assert.match(html, /demostración/);
   assert.doesNotMatch(html, /garantiz|100 ?%|cumple con la ley|aprobado por/i);
 });
+
+test('la leyenda "un servicio de" aparece en la portada y el pie, con enlace si hay sitio web', () => {
+  const html = renderLanding({ ...base, company: 'AgroTabaco', companyUrl: 'https://agrotabaco.com/' });
+  assert.match(html, /<p class="byline">Farma-asistente es un servicio de <a href="https:\/\/agrotabaco\.com\/" rel="noopener">AgroTabaco<\/a>\.<\/p>/);
+  assert.equal(html.match(/es un servicio de/g)?.length, 2, 'una vez en la portada y otra en el pie');
+});
+
+test('sin sitio web, la empresa se muestra sin enlace; sin empresa, no hay leyenda', () => {
+  const noLink = renderLanding({ ...base, company: 'AgroTabaco' });
+  assert.match(noLink, /es un servicio de AgroTabaco\./);
+  assert.doesNotMatch(noLink, /es un servicio de <a/);
+  assert.doesNotMatch(renderLanding(base), /es un servicio de/);
+});
+
+test('el nombre de la empresa y su sitio se escapan', () => {
+  const html = renderLanding({ ...base, company: '<b>Evil</b> & Co', companyUrl: 'https://x.test/?a="b"' });
+  assert.doesNotMatch(html, /<b>Evil<\/b>/);
+  assert.match(html, /&lt;b&gt;Evil&lt;\/b&gt; &amp; Co/);
+  assert.doesNotMatch(html, /href="https:\/\/x\.test\/\?a="b""/);
+});
+
+test('el titular legal aparece en el pie solo si está configurado, y se escapa', () => {
+  assert.doesNotMatch(renderLanding(base), /Titular:/);
+  const html = renderLanding({ ...base, legal: 'Ana <b>Pérez</b> · CUIT 20-12345678-9' });
+  assert.match(html, /<p class="wrap fine">Titular: Ana &lt;b&gt;Pérez&lt;\/b&gt; · CUIT 20-12345678-9<\/p>/);
+});

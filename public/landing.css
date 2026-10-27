@@ -153,3 +153,7 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); font-family
 
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* leyenda "un servicio de …" */
+.byline { margin-top: 22px; color: var(--muted); font-size: 15px; }
+.byline a, .foot-inner a { color: var(--accent); font-weight: 600; }
