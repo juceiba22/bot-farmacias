@@ -108,6 +108,20 @@ En `agent`, `messages` es el historial reciente con roles alternados (termina co
 
 ### Fotos y recetas
 
+**Forma simple (la que usa el workflow incluido):** n8n no descarga nada. Manda el mensaje a `/agent/respond` (o `/agent/inbound`) con `type: "media"` y el **id del adjunto** que trae WhatsApp:
+
+```json
+{ "phone": "5491166814208", "type": "media", "media_id": "1234567890", "text": "receta de mi mamá", "message_id": "wamid.XXX" }
+```
+
+El servidor baja el archivo de Meta, verifica por su contenido que sea JPG, PNG, WebP o PDF (hasta 10 MB) y lo guarda. Si el archivo no es válido o no se puede bajar, responde como mensaje no soportado. Sin consentimiento previo no se descarga nada y se devuelve el aviso de privacidad.
+
+Requisito: el servicio del bot necesita la variable **`WA_ACCESS_TOKEN`** (el token permanente de Meta) para poder descargar adjuntos. Sin ella, `media_id` devuelve `503`.
+
+Claude **no ve el contenido** de las fotos: solo sabe que llegó un adjunto. Al registrar la receta, las fotos de las últimas 6 horas se adjuntan solas y el equipo las ve en el panel.
+
+**Forma manual (alternativa):**
+
 1. Llega una imagen o PDF → n8n la descarga de WhatsApp y la manda en base64 a `POST /agent/media` con `{ "phone", "data" }`.
    - `403 consent_required`: la persona todavía no aceptó el aviso de privacidad. Llamá a `/agent/inbound` con `type: "text"` y `text: ""`: devuelve el aviso.
    - `415`: no es JPG, PNG, WebP ni PDF (se verifica el contenido real, no la extensión).

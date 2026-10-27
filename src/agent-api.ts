@@ -23,7 +23,11 @@ type Deps = {
   dataDir: string;
   /** Si se pasa, habilita POST /agent/respond (Claude corre dentro del bot). */
   makeRunner?: (ops: AgentOps) => AgentRunner;
+  /** Descarga un adjunto de WhatsApp por su id (para recibir fotos de recetas). Sin esto, `media_id` no se acepta. */
+  downloadMedia?: (mediaId: string) => Promise<Buffer>;
 };
+
+const MEDIA_ID_RE = /^\d{5,40}$/;
 
 /**
  * API para el orquestador (n8n) y el modelo de lenguaje. Todo cuelga de /agent y exige `Authorization: Bearer <token>`.
@@ -61,8 +65,24 @@ export function createAgentApi(deps: Deps) {
     return turns;
   }
 
+  /** Baja de WhatsApp el adjunto indicado por `media_id` y lo guarda. Sin consentimiento no se descarga nada. */
+  async function incomingFromMediaId(phone: string, name: string | undefined, text: string, mediaId: string): Promise<Incoming> {
+    if (!MEDIA_ID_RE.test(mediaId)) throw new HttpError(400, 'media_id inválido');
+    // Sin consentimiento no se guarda nada: el bot responde con el aviso de privacidad.
+    if (!store.canLog(phone)) return { from: phone, name, type: 'text', text: '' };
+    if (!deps.downloadMedia) throw new HttpError(503, 'Descarga de adjuntos apagada: falta WA_ACCESS_TOKEN');
+    try {
+      const saved = saveMedia(dataDir, await deps.downloadMedia(mediaId));
+      if (saved) return { from: phone, name, type: 'media', text, media: saved };
+    } catch (err) {
+      console.error('No se pudo descargar el adjunto:', err instanceof Error ? err.message : err);
+    }
+    // Archivo que no es foto ni PDF, demasiado grande o imposible de bajar: se trata como mensaje no soportado.
+    return { from: phone, name, type: 'unsupported' };
+  }
+
   /** Un mensaje entrante: aplica las reglas fijas y decide si responde el código, nadie, o Claude. */
-  function screenInbound(body: Record<string, unknown>) {
+  async function screenInbound(body: Record<string, unknown>) {
     const phone = phoneOf(body.phone);
     const name = str(body.name, 40) || undefined;
     const messageId = str(body.message_id, 200);
@@ -70,7 +90,9 @@ export function createAgentApi(deps: Deps) {
 
     const type = str(body.type, 12) || 'text';
     let incoming: Incoming;
-    if (type === 'media') {
+    if (type === 'media' && body.media_id !== undefined) {
+      incoming = await incomingFromMediaId(phone, name, str(body.text, 2000), str(body.media_id, 40));
+    } else if (type === 'media') {
       const file = str((body.media as { file?: unknown } | undefined)?.file, 80);
       if (!MEDIA_FILE_RE.test(file) || !existsSync(mediaPath(dataDir, file))) throw new HttpError(400, 'media.file inválido: subilo antes con /agent/media');
       incoming = { from: phone, name, type: 'media', text: str(body.text, 2000), media: { file, mime: contentTypeFor(file) } };
@@ -109,7 +131,7 @@ export function createAgentApi(deps: Deps) {
   // ---------------------------------------------------------------- rutas
 
   async function inbound(req: IncomingMessage, res: ServerResponse) {
-    const screened = screenInbound(await readJson(req));
+    const screened = await screenInbound(await readJson(req));
     if (screened.duplicate) return json(res, 200, { action: 'silent', reason: 'duplicate' });
     const { phone, decision, name } = screened;
     if (decision.action !== 'agent') return json(res, 200, decision);
@@ -126,7 +148,7 @@ export function createAgentApi(deps: Deps) {
     const body = await readJson(req);
     const phone = phoneOf(body.phone);
     const out = await withLock(phone, async () => {
-      const screened = screenInbound(body);
+      const screened = await screenInbound(body);
       if (screened.duplicate) return { action: 'silent', reason: 'duplicate' };
       const { decision } = screened;
       if (decision.action === 'silent') return { action: 'silent' };

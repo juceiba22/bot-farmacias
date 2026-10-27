@@ -55,6 +55,7 @@ const agentApi = createAgentApi({
   catalog,
   token: env.agentToken,
   dataDir: env.dataDir,
+  downloadMedia: env.wa.token ? (mediaId) => wa.downloadMedia(mediaId) : undefined,
   makeRunner: anthropicClient
     ? (ops) => createAgentRunner({ client: anthropicClient, model: env.anthropic.model, effort: env.anthropic.effort, cfg, ops, bot })
     : undefined,

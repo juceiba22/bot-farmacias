@@ -11,7 +11,7 @@
         -120
       ],
       "parameters": {
-        "content": "## Bot de farmacia: WhatsApp → Claude\n\n**Cómo funciona:** cada mensaje va a `/agent/respond` del bot. El bot aplica las reglas fijas (consentimiento, emergencias, consultas médicas) y, si corresponde, consulta a Claude. n8n solo conecta WhatsApp con el bot.\n\n**Antes de activarlo, creá 3 credenciales y elegilas en los nodos:**\n1. *WhatsApp OAuth API* (nodo WhatsApp Trigger): App ID y App Secret de tu app de Meta.\n2. *Header Auth* \"Bot farmacias (Bearer)\": Name `Authorization`, Value `Bearer <AGENT_API_TOKEN>`.\n3. *Header Auth* \"WhatsApp Graph (Bearer)\": Name `Authorization`, Value `Bearer <token de acceso de Meta>`.\n\nDespués, **activá el workflow** (interruptor arriba a la derecha) para que Meta use la URL de producción.\n\n**Etapa 1:** solo texto. Fotos y recetas por imagen, en la etapa 2.",
+        "content": "## Bot de farmacia: WhatsApp → Claude\n\n**Cómo funciona:** cada mensaje va a `/agent/respond` del bot. El bot aplica las reglas fijas (consentimiento, emergencias, consultas médicas) y, si corresponde, consulta a Claude. n8n solo conecta WhatsApp con el bot.\n\n**Antes de activarlo, creá 3 credenciales y elegilas en los nodos:**\n1. *WhatsApp OAuth API* (nodo WhatsApp Trigger): App ID y App Secret de tu app de Meta.\n2. *Header Auth* \"Bot farmacias (Bearer)\": Name `Authorization`, Value `Bearer <AGENT_API_TOKEN>`.\n3. *Header Auth* \"WhatsApp Graph (Bearer)\": Name `Authorization`, Value `Bearer <token de acceso de Meta>`.\n\nDespués, **activá el workflow** (interruptor arriba a la derecha) para que Meta use la URL de producción.\n\n**Soporta:** texto, fotos y PDF (recetas). Para las fotos, el servicio del bot necesita la variable `WA_ACCESS_TOKEN` (el token permanente de Meta).",
         "height": 420,
         "width": 520
       }
@@ -48,7 +48,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "// Convierte el aviso de WhatsApp en el pedido que entiende el bot.\n// Un aviso puede traer estados (entregado, leído) en vez de mensajes: en ese caso no se hace nada.\nconst aviso = $input.first().json;\nconst m = aviso.messages?.[0];\nif (!m) return [];\n\nlet type = 'text';\nlet text = '';\nif (m.type === 'text') text = m.text?.body ?? '';\nelse if (m.type === 'button') text = m.button?.text ?? '';\nelse if (m.type === 'interactive') text = m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? '';\nelse type = 'unsupported'; // fotos, audios, ubicación… (las fotos de recetas llegan en la segunda etapa)\n\nreturn [{\n  json: {\n    phone: m.from,\n    name: aviso.contacts?.[0]?.profile?.name ?? '',\n    type,\n    text,\n    message_id: m.id,\n    phone_number_id: aviso.metadata?.phone_number_id ?? '',\n  },\n}];"
+        "jsCode": "// Convierte el aviso de WhatsApp en el pedido que entiende el bot.\n// Un aviso puede traer estados (entregado, leído) en vez de mensajes: en ese caso no se hace nada.\nconst aviso = $input.first().json;\nconst m = aviso.messages?.[0];\nif (!m) return [];\n\nlet type = 'text';\nlet text = '';\nlet media_id = '';\nif (m.type === 'text') text = m.text?.body ?? '';\nelse if (m.type === 'button') text = m.button?.text ?? '';\nelse if (m.type === 'interactive') text = m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? '';\nelse if (m.type === 'image' || m.type === 'document') {\n  // Fotos y PDF (por ejemplo, recetas): el bot las descarga de WhatsApp con este id.\n  const adjunto = m.image ?? m.document;\n  media_id = adjunto?.id ?? '';\n  text = adjunto?.caption ?? '';\n  type = media_id ? 'media' : 'unsupported';\n} else type = 'unsupported'; // audios, ubicación, stickers…\n\nreturn [{\n  json: {\n    phone: m.from,\n    name: aviso.contacts?.[0]?.profile?.name ?? '',\n    type,\n    text,\n    media_id,\n    message_id: m.id,\n    phone_number_id: aviso.metadata?.phone_number_id ?? '',\n  },\n}];"
       }
     },
     {
@@ -67,7 +67,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, name: $json.name, type: $json.type, text: $json.text, message_id: $json.message_id }) }}",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, name: $json.name, type: $json.type, text: $json.text, message_id: $json.message_id, media_id: $json.media_id || undefined }) }}",
         "options": {
           "timeout": 120000
         }
@@ -108,7 +108,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone, type: 'text', text: { body: $json.text, preview_url: false } }) }}",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone.replace(/^549/, '54'), type: 'text', text: { body: $json.text, preview_url: false } }) }}",
         "options": {}
       },
       "credentials": {
